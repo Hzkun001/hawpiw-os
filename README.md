@@ -79,9 +79,33 @@ index.html ─ shell (desktop + taskbar)              src/shell/
 ```
 
 - **Isolasi**: app tidak punya `allow-same-origin`, jadi tidak bisa menyentuh DOM shell,
-  storage, atau cookie. Satu-satunya jalan keluar adalah syscall.
+  storage, atau cookie. Satu-satunya jalan keluar adalah syscall (lihat bagian Keamanan).
 - **Izin per app** (di `src/apps/registry.js`): `fs` (berkas), `launch` (membuka app lain), `backup` (ekspor/impor seluruh filesystem, hanya app Cadangan).
 - **Filesystem**: OPFS bila ada; selain itu IndexedDB (Safari, atau file dibuka dari `file://`).
+
+## Keamanan
+
+Setiap app berjalan di `<iframe sandbox="allow-scripts allow-modals" srcdoc>` (origin
+opaque: tidak bisa menyentuh DOM shell, storage, atau cookie) dan hanya bisa berbuat sesuatu
+lewat syscall yang izinnya dicek kernel. Lapisan perlindungannya:
+
+| Ancaman | Perlindungan | Diuji di `tests/e2e.mjs` |
+|---|---|---|
+| App mengirim data ke internet (`fetch`, gambar suar, form) | CSP per dokumen app (`default-src 'none'`), ditambah CSP halaman utama yang diwarisi dokumen app | server uji tidak menerima apa pun |
+| Halaman lain memakai izin app (app berpindah halaman) | **Token instans** per proses di setiap syscall (pola `appInstanceID` Puter); app yang berpindah halaman diblokir CSP `frame-src` (Firefox) atau prosesnya ditutup kernel (Chromium) | halaman asing tidak mendapat data |
+| Pesan palsu ke kernel | Pengirim harus iframe pemilik proses **dan** membawa token-nya | syscall tanpa token diabaikan |
+| Skrip asing di halaman utama (XSS) | CSP halaman utama: hanya skrip & style yang hash-nya dihitung saat build yang boleh jalan | build gagal bila ada blok inline tak ter-hash |
+| Cadangan berbahaya (zip slip, zip bomb, manipulasi) | Validasi penuh sebelum menulis apa pun; lihat bagian Cadangan | 6 jenis zip berbahaya ditolak |
+
+**Sisa risiko yang diketahui** (tidak bisa ditutup dari dalam halaman web):
+- **WebRTC** tidak diatur CSP, jadi app bisa membuka koneksi WebRTC. Belum ada mitigasi.
+- **Data di URL saat berpindah halaman**: di Chromium, permintaan navigasi sudah terkirim
+  sebelum kernel menutup prosesnya.
+- **App macet membekukan app lain**: semua app berbagi satu proses browser. Menutup app yang
+  macet tidak menolong. Solusi jangka panjang: app pihak ketiga di-hosting di *site* terpisah.
+
+Karena itu, saat ini Hawpiw OS hanya menjalankan app bawaan. Sebelum app pihak ketiga bisa
+dipasang, dua risiko pertama perlu izin `network` yang eksplisit dan isolasi per *site*.
 
 ## Riset: proyek open-source yang dipelajari
 

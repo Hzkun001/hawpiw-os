@@ -62,12 +62,43 @@ const SYSCALLS = {
   },
 };
 
-// JSON aman untuk disisipkan di dalam <script>.
-const safeJson = (v) => JSON.stringify(v ?? {}).replace(/</g, '\\u003c');
+// CSP setiap dokumen app: tidak ada jaringan sama sekali (fetch, gambar, font,
+// media dari luar, form), sehingga app tidak bisa mengirim data ke luar.
+// Di build produksi, CSP halaman utama (diwarisi dokumen srcdoc) mempersempit
+// script-src/style-src lagi menjadi hash kode yang dikenal saja.
+// Sisa risiko yang TIDAK bisa ditutup CSP: WebRTC, dan app yang berpindah
+// halaman (URL tujuan bisa membawa data). Yang kedua dibatasi: app yang
+// berpindah halaman langsung ditutup (lihat launch()). Lihat README > Keamanan.
+const APP_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  'img-src data: blob:',
+  'font-src data:',
+  'media-src data: blob:',
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ');
 
-function buildDoc(app, args) {
-  const inject = `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
-    + `<style>${appCss}</style><script>window.HAWPIW_ARGS=${safeJson(args)};${sdkSrc}</script>`;
+const attr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// Token instans: rahasia per proses, wajib ada di setiap syscall. Pesan dari
+// dokumen lain di frame yang sama (mis. setelah app berpindah halaman) tidak
+// tahu token ini. Pola yang sama dipakai Puter (appInstanceID).
+// getRandomValues dipakai karena randomUUID butuh secure context.
+function newToken() {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+// Data per proses (token, argumen) dikirim lewat <meta>, bukan <script>,
+// supaya semua skrip di dokumen app statis dan bisa di-hash untuk CSP.
+function buildDoc(app, boot) {
+  const inject = '<meta charset="utf-8">'
+    + `<meta http-equiv="Content-Security-Policy" content="${APP_CSP}">`
+    + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+    + `<meta name="hawpiw-boot" content="${attr(JSON.stringify(boot))}">`
+    + `<style>${appCss}</style><script>${sdkSrc}</script>`;
   return app.html.replace(/<head>/i, `<head>${inject}`);
 }
 
@@ -91,14 +122,22 @@ export class Kernel extends EventTarget {
     if (!app) throw new Error(`Aplikasi tidak dikenal: ${appId}`);
     const t0 = performance.now();
     const pid = this.#nextPid++;
+    const token = newToken();
 
     const frame = document.createElement('iframe');
     frame.setAttribute('sandbox', SANDBOX);
     frame.className = 'app-frame';
     // Titik ukur performa: dari launch() sampai dokumen app selesai dimuat
     // (script app sudah jalan). Dibaca oleh tests/perf.mjs.
-    frame.addEventListener('load', () => measure(`hawpiw:launch:${app.id}`, t0, { pid }), { once: true });
-    frame.srcdoc = buildDoc(app, args);
+    let loads = 0;
+    frame.addEventListener('load', () => {
+      if (++loads === 1) return measure(`hawpiw:launch:${app.id}`, t0, { pid });
+      // Dokumen kedua di frame ini = app berpindah halaman. Halaman baru bukan
+      // app yang kita jalankan, jadi prosesnya dihentikan.
+      console.warn(`[hawpiw] ${app.name} berpindah halaman; proses ${pid} dihentikan`);
+      proc.win.close();
+    });
+    frame.srcdoc = buildDoc(app, { token, args });
 
     const narrow = window.innerWidth < 700;
     const offset = (this.procs.size % 6) * 28;
@@ -122,7 +161,7 @@ export class Kernel extends EventTarget {
     });
     if (narrow) win.maximize();
 
-    const proc = { pid, app, win, frame, perms: new Set(app.permissions ?? []) };
+    const proc = { pid, token, app, win, frame, perms: new Set(app.permissions ?? []) };
     this.procs.set(frame.contentWindow, proc);
     this.#changed();
     return proc;
@@ -133,7 +172,8 @@ export class Kernel extends EventTarget {
   async #onMessage(e) {
     const proc = this.procs.get(e.source);
     const msg = e.data;
-    if (!proc || !msg || msg.hawpiw !== 1 || typeof msg.call !== 'string') return;
+    // Hanya dokumen app asli (punya token instansnya) yang boleh memanggil syscall.
+    if (!proc || !msg || msg.hawpiw !== 1 || msg.token !== proc.token || typeof msg.call !== 'string') return;
 
     const reply = (body) => e.source.postMessage({ hawpiw: 1, id: msg.id, ...body }, '*');
     const sc = Object.hasOwn(SYSCALLS, msg.call) ? SYSCALLS[msg.call] : null;
