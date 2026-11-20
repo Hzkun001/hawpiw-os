@@ -64,4 +64,10 @@ dipertimbangkan lagi bila app WASI butuh API POSIX).
 
 ## Lisensi
 
-Belum ditentukan. Sampai file `LICENSE` ditambahkan, semua hak dilindungi oleh pemilik repo.
+Hawpiw OS berlisensi **GNU General Public License v3.0 atau yang lebih baru**
+(`GPL-3.0-or-later`); lihat [LICENSE](LICENSE). Anda bebas memakai, mengubah, dan
+mendistribusikan ulang, asalkan versi turunannya juga dirilis dengan lisensi yang sama
+beserta kode sumbernya.
+
+Komponen pihak ketiga (WinBox.js, idb-keyval) berlisensi Apache-2.0, yang kompatibel
+dengan GPLv3. Setiap build menyertakan `THIRD-PARTY-LICENSES.txt`.

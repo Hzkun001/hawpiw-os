@@ -1,14 +1,15 @@
 {
   "name": "hawpiw-os",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Sistem operasi web satu file: ringan, offline, tanpa server",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:e2e": "node tests/e2e.mjs"
+    "test:e2e": "node tests/e2e.mjs",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name hawpiw-os --branch main"
   },
-  "license": "UNLICENSED",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "dependencies": {
     "idb-keyval": "^6.3.0",
@@ -17,7 +18,13 @@
   "devDependencies": {
     "playwright-core": "^1.64.0",
     "vite": "^8.3.8",
-    "vite-plugin-singlefile": "^2.3.4"
+    "vite-plugin-singlefile": "^2.3.4",
+    "wrangler": "^4.165.0"
   },
-  "private": true
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hzkun001/hawpiw-os.git"
+  },
+  "homepage": "https://github.com/Hzkun001/hawpiw-os"
 }
