@@ -4,6 +4,7 @@
 import WinBox from 'winbox/src/js/winbox.js';
 import sdkSrc from '../sdk/hawpiw-sdk.js?raw';
 import appCss from '../sdk/app.css?raw';
+import { measure } from './metrics.js';
 
 // Tanpa allow-same-origin: app mendapat origin "opaque", tidak bisa menyentuh
 // DOM shell, storage, atau cookie. Satu-satunya jalan keluar adalah syscall.
@@ -49,10 +50,15 @@ export class Kernel extends EventTarget {
   launch(appId, args = {}) {
     const app = this.apps.get(appId);
     if (!app) throw new Error(`Aplikasi tidak dikenal: ${appId}`);
+    const t0 = performance.now();
+    const pid = this.#nextPid++;
 
     const frame = document.createElement('iframe');
     frame.setAttribute('sandbox', SANDBOX);
     frame.className = 'app-frame';
+    // Titik ukur performa: dari launch() sampai dokumen app selesai dimuat
+    // (script app sudah jalan). Dibaca oleh tests/perf.mjs.
+    frame.addEventListener('load', () => measure(`hawpiw:launch:${app.id}`, t0, { pid }), { once: true });
     frame.srcdoc = buildDoc(app, args);
 
     const narrow = window.innerWidth < 700;
@@ -77,7 +83,7 @@ export class Kernel extends EventTarget {
     });
     if (narrow) win.maximize();
 
-    const proc = { pid: this.#nextPid++, app, win, frame, perms: new Set(app.permissions ?? []) };
+    const proc = { pid, app, win, frame, perms: new Set(app.permissions ?? []) };
     this.procs.set(frame.contentWindow, proc);
     this.#changed();
     return proc;

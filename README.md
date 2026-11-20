@@ -24,6 +24,36 @@ Catatan: wrangler 4.165 mengalihkan perintah `pages` ke sistem baru yang gagal u
 project statis ini; flag `--force` memakai jalur Pages langsung. Upload kadang gagal
 dengan `ECONNRESET` di jaringan yang tidak stabil. Aman diulang (upload berbasis hash).
 
+## Performa
+
+Target utama proyek ini adalah **performa saat dipakai** di perangkat murah, bukan cepat jadi.
+`perf-budget.json` berisi anggaran; `tests/perf.mjs` mengukur di Chromium dengan CPU
+diperlambat 4x dan gagal bila median melewati anggaran.
+
+```bash
+npm run build && npm run preview &
+npm run perf -- http://localhost:4173/            # 15 sampel, ~40 detik
+npm run perf -- http://localhost:4173/ --json hasil.json
+```
+
+Metodenya meniru [google/tachometer](https://github.com/google/tachometer) (kini diarsipkan):
+browser baru per sampel, sampel pemanasan dibuang, dilaporkan median, IQR, dan interval
+kepercayaan 95% median (bootstrap). Waktu diambil dari `performance.measure` milik OS
+(`hawpiw:boot`, `hawpiw:launch:<app>`); RAM dari PSS proses renderer di `/proc` (Linux).
+
+Hasil 0.1.0 (Linux, 4 core, CPU diperlambat 4x):
+
+| Metrik | Median | Anggaran |
+|---|---|---|
+| Boot sampai shell siap | 213 ms | 300 ms |
+| First contentful paint | 264 ms | 300 ms |
+| Buka app pertama (cold start, termasuk proses sandbox baru) | 84 ms | 100 ms |
+| Buka app berikutnya | 40–45 ms | 60 ms |
+| RAM desktop (PSS) | 84 MB, di mana ~68 MB adalah Chromium sendiri | 95 MB |
+| RAM tambahan per app | 14 MB | 18 MB |
+| Ukuran (gzip) | 14 KB | 25 KB |
+| Kebocoran setelah 40 kali buka-tutup app | +3 KB heap, dokumen & proses kembali | 16 KB |
+
 ## Arsitektur
 
 ```

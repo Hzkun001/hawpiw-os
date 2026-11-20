@@ -2,6 +2,7 @@ import 'winbox/dist/css/winbox.min.css';
 import './shell/shell.css';
 import { createFs } from './kernel/fs.js';
 import { Kernel } from './kernel/kernel.js';
+import { measure } from './kernel/metrics.js';
 import { mountShell } from './shell/desktop.js';
 import { apps } from './apps/registry.js';
 
@@ -25,6 +26,8 @@ async function boot() {
   const kernel = new Kernel({ fs, apps });
   mountShell(kernel);
   window.hawpiwKernel = kernel; // untuk debugging di DevTools
+  // Titik ukur performa: dari awal navigasi sampai shell siap dipakai.
+  measure('hawpiw:boot', 0, { fsBackend: fs.backend }); // 0 = awal navigasi
   console.info(`[hawpiw] boot ${Math.round(performance.now() - t0)} ms · fs=${fs.backend}`);
 }
 

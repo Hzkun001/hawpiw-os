@@ -1,0 +1,16 @@
+{
+  "$comment": "Anggaran performa Hawpiw OS. Diukur oleh tests/perf.mjs di Chromium dengan CPU diperlambat (simulasi perangkat murah). Median melewati anggaran = gagal. RAM = PSS proses renderer; sebagai pembanding, halaman kosong di Chromium = ~68 MB.",
+  "throttle": 4,
+  "budgets": {
+    "boot_ms": 300,
+    "fcp_ms": 300,
+    "launch_cold_ms": 100,
+    "launch_files_ms": 60,
+    "launch_notes_ms": 60,
+    "launch_terminal_ms": 60,
+    "pss_idle_mb": 95,
+    "pss_per_app_mb": 18,
+    "size_gzip_kb": 25,
+    "leak_heap_kb": 16
+  }
+}
