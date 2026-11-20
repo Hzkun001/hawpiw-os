@@ -25,6 +25,10 @@
     },
     app: { list: () => call('app.list'), launch: (id, args) => call('app.launch', id, args) },
     win: { setTitle: (t) => call('win.setTitle', t) },
+    backup: {
+      export: () => call('backup.export'),
+      import: (data, mode) => call('backup.import', data, mode),
+    },
     exit: () => call('proc.exit'),
     info: () => call('sys.info'),
   };

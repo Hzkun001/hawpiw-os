@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+<style>
+  body{padding:14px;overflow:auto}
+  section{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--panel)}
+  h2{font-size:14px;margin:0 0 6px}
+  p{margin:0 0 10px}
+  label{display:flex;gap:8px;align-items:flex-start;margin:4px 0}
+  input[type=file]{width:100%;margin:6px 0 8px}
+  .result{margin-top:8px;min-height:1.4em}
+  .ok{color:#3fb37f}
+</style>
+</head>
+<body>
+  <p class="muted">Data Hawpiw OS tersimpan di browser dan bisa hilang bila data situs dibersihkan.
+    Unduh cadangan secara berkala.</p>
+
+  <section>
+    <h2>Unduh cadangan</h2>
+    <p class="muted">Seluruh berkas dan folder disimpan sebagai satu file .zip.</p>
+    <button id="export">Unduh cadangan</button>
+    <div id="exportResult" class="result" role="status"></div>
+  </section>
+
+  <section>
+    <h2>Pulihkan dari cadangan</h2>
+    <input type="file" id="file" accept=".zip,application/zip" aria-label="File cadangan">
+    <label><input type="radio" name="mode" value="merge" checked>
+      <span>Gabungkan<br><span class="muted">Berkas bernama sama ditimpa, sisanya tetap.</span></span></label>
+    <label><input type="radio" name="mode" value="replace">
+      <span>Ganti semua<br><span class="muted">Semua data sekarang dihapus lalu diganti isi cadangan.</span></span></label>
+    <button id="import" disabled>Pulihkan</button>
+    <div id="importResult" class="result" role="status"></div>
+  </section>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const show = (id, text, cls) => { $(id).textContent = text; $(id).className = 'result ' + (cls || 'muted'); };
+  const kb = (n) => (n / 1024).toFixed(1) + ' KB';
+
+  $('export').onclick = async () => {
+    $('export').disabled = true;
+    show('exportResult', 'Menyiapkan…');
+    try {
+      const r = await hawpiw.backup.export();
+      show('exportResult', `Diunduh: ${r.files} berkas, ${r.dirs} folder (${kb(r.bytes)}).`, 'ok');
+    } catch (e) { show('exportResult', e.message, 'err'); }
+    $('export').disabled = false;
+  };
+
+  $('file').onchange = () => { $('import').disabled = !$('file').files.length; show('importResult', ''); };
+
+  $('import').onclick = async () => {
+    const file = $('file').files[0];
+    if (!file) return;
+    const mode = document.querySelector('input[name=mode]:checked').value;
+    if (mode === 'replace' && !confirm('Hapus SEMUA data sekarang lalu ganti dengan isi cadangan?')) return;
+    $('import').disabled = true;
+    show('importResult', 'Memulihkan…');
+    try {
+      const r = await hawpiw.backup.import(await file.arrayBuffer(), mode);
+      const when = r.created ? new Date(r.created).toLocaleString('id-ID') : 'tidak diketahui';
+      show('importResult', `Dipulihkan: ${r.files} berkas, ${r.dirs} folder (cadangan ${when}).`, 'ok');
+    } catch (e) { show('importResult', e.message, 'err'); }
+    $('import').disabled = false;
+  };
+</script>
+</body>
+</html>

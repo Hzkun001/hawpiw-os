@@ -45,5 +45,6 @@ ${deps.map((d) => `    ${d.name} ${d.version} (${d.license}) oleh ${author(d.aut
 // + THIRD-PARTY-LICENSES.txt + berkas dari public/ (mis. _headers Cloudflare).
 export default defineConfig({
   plugins: [viteSingleFile(), licenseNotices()],
+  define: { __HAWPIW_VERSION__: JSON.stringify(pkg.version) },
   build: { target: 'es2022' },
 });

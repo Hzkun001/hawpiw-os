@@ -41,18 +41,32 @@ browser baru per sampel, sampel pemanasan dibuang, dilaporkan median, IQR, dan i
 kepercayaan 95% median (bootstrap). Waktu diambil dari `performance.measure` milik OS
 (`hawpiw:boot`, `hawpiw:launch:<app>`); RAM dari PSS proses renderer di `/proc` (Linux).
 
-Hasil 0.1.0 (Linux, 4 core, CPU diperlambat 4x):
+Hasil terakhir (Linux, 4 core, CPU diperlambat 4x):
 
 | Metrik | Median | Anggaran |
 |---|---|---|
-| Boot sampai shell siap | 213 ms | 300 ms |
-| First contentful paint | 264 ms | 300 ms |
-| Buka app pertama (cold start, termasuk proses sandbox baru) | 84 ms | 100 ms |
-| Buka app berikutnya | 40–45 ms | 60 ms |
-| RAM desktop (PSS) | 84 MB, di mana ~68 MB adalah Chromium sendiri | 95 MB |
+| Boot sampai shell siap | 222 ms | 300 ms |
+| First contentful paint | 268 ms | 300 ms |
+| Buka app pertama (cold start, termasuk proses sandbox baru) | 81 ms | 100 ms |
+| Buka app berikutnya | 39–47 ms | 60 ms |
+| RAM desktop (PSS) | 87 MB, di mana ~68 MB adalah Chromium sendiri | 95 MB |
 | RAM tambahan per app | 14 MB | 18 MB |
-| Ukuran (gzip) | 14 KB | 25 KB |
-| Kebocoran setelah 40 kali buka-tutup app | +3 KB heap, dokumen & proses kembali | 16 KB |
+| Ukuran (gzip) | 23,5 KB | 25 KB |
+| Kebocoran setelah 40 kali buka-tutup app | +2 KB heap, dokumen & proses kembali | 16 KB |
+
+Contoh keputusan yang diambil dari angka ini: modul Cadangan (fflate) dimuat saat
+pertama dipakai, bukan saat boot. Dimuat saat boot, ia menambah boot +15% dan RAM +5 MB.
+
+## Cadangan (ekspor/impor)
+
+Penyimpanan browser bisa hilang, jadi app **Cadangan** menyimpan seluruh berkas ke satu
+`.zip` (`hawpiw-backup.json` + `files/…`) dan memulihkannya (gabungkan atau ganti semua).
+
+- Seluruh zip divalidasi **sebelum** apa pun diubah: manifest, format, ukuran tiap berkas,
+  path (`..` ditolak), batas 100 MB zip / 200 MB isi / 10.000 entri.
+- Mode "ganti semua" membuat salinan pengaman di memori; bila penulisan gagal di tengah
+  jalan, data lama dikembalikan.
+- Saat ini filesystem hanya menyimpan teks, jadi cadangan juga berisi teks (UTF-8).
 
 ## Arsitektur
 
@@ -66,7 +80,7 @@ index.html ─ shell (desktop + taskbar)              src/shell/
 
 - **Isolasi**: app tidak punya `allow-same-origin`, jadi tidak bisa menyentuh DOM shell,
   storage, atau cookie. Satu-satunya jalan keluar adalah syscall.
-- **Izin per app** (di `src/apps/registry.js`): `fs` (berkas) dan `launch` (membuka app lain).
+- **Izin per app** (di `src/apps/registry.js`): `fs` (berkas), `launch` (membuka app lain), `backup` (ekspor/impor seluruh filesystem, hanya app Cadangan).
 - **Filesystem**: OPFS bila ada; selain itu IndexedDB (Safari, atau file dibuka dari `file://`).
 
 ## Riset: proyek open-source yang dipelajari
@@ -85,6 +99,7 @@ index.html ─ shell (desktop + taskbar)              src/shell/
 ### Library yang dipakai (bukan ditulis ulang)
 - [WinBox.js](https://github.com/nextapps-de/winbox) (Apache-2.0): window manager (drag, resize, minimize, maximize).
 - [idb-keyval](https://github.com/jakearchibald/idb-keyval) (Apache-2.0): backend IndexedDB.
+- [fflate](https://github.com/101arrowz/fflate) (MIT): zip untuk cadangan (dimuat saat dipakai).
 - [vite-plugin-singlefile](https://github.com/richardtallent/vite-plugin-singlefile) (MIT): build menjadi satu file.
 
 Sengaja **tidak** dipakai: ZenFS (108 KB gzip & LGPL, lebih besar dari seluruh OS ini;
@@ -94,8 +109,9 @@ dipertimbangkan lagi bila app WASI butuh API POSIX).
 
 1. **Fase 1: web (sekarang)**
    - [x] Shell, kernel syscall, sandbox, izin, filesystem, Berkas/Catatan/Terminal
+   - [x] Pengukuran performa stabil + anggaran performa
    - [ ] PWA + Service Worker ([vite-plugin-pwa](https://github.com/vite-pwa/vite-plugin-pwa)) untuk versi hosted
-   - [ ] Ekspor/impor seluruh data (backup), karena storage browser bisa dihapus
+   - [x] Ekspor/impor seluruh data (app Cadangan)
    - [ ] Sinkron P2P antar perangkat: [Yjs](https://github.com/yjs/yjs) + [y-webrtc](https://github.com/yjs/y-webrtc) + y-indexeddb
    - [ ] App WASI: [@bjorn3/browser_wasi_shim](https://github.com/bjorn3/browser_wasi_shim)
 2. **Fase 2: boot di laptop bekas.** Linux minimal + Cage (kiosk) + browser, membuka Hawpiw OS lokal.

@@ -5,6 +5,28 @@ import WinBox from 'winbox/src/js/winbox.js';
 import sdkSrc from '../sdk/hawpiw-sdk.js?raw';
 import appCss from '../sdk/app.css?raw';
 import { measure } from './metrics.js';
+// Modul cadangan (termasuk fflate) dimuat saat pertama dipakai, bukan saat boot:
+// fflate membangun tabel kompresi ketika dievaluasi, dan biaya itu (+15% boot,
+// +5 MB RAM) tidak layak dibayar setiap boot untuk fitur yang jarang dipakai.
+const loadBackup = () => import('./backup.js');
+
+const VERSION = __HAWPIW_VERSION__; // diisi Vite dari package.json
+
+// Unduhan dipicu dari dokumen utama: iframe app tidak punya allow-downloads.
+function download(bytes, filename, type) {
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+const stamp = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+};
 
 // Tanpa allow-same-origin: app mendapat origin "opaque", tidak bisa menyentuh
 // DOM shell, storage, atau cookie. Satu-satunya jalan keluar adalah syscall.
@@ -20,7 +42,24 @@ const SYSCALLS = {
   'app.launch': { perm: 'launch', run: (k, p, [id, args]) => k.launch(id, args).pid },
   'win.setTitle': { run: (k, p, [title]) => { p.win.setTitle(`${p.app.icon} ${String(title).slice(0, 80)}`); } },
   'proc.exit': { run: (k, p) => { p.win.close(); } },
-  'sys.info':  { run: (k) => ({ fsBackend: k.fs.backend, processes: k.procs.size, apps: k.apps.size }) },
+  'sys.info':  { run: (k) => ({ version: VERSION, fsBackend: k.fs.backend, processes: k.procs.size, apps: k.apps.size }) },
+  'backup.export': {
+    perm: 'backup',
+    run: async (k) => {
+      const { exportBackup } = await loadBackup();
+      const r = await exportBackup(k.fs, VERSION);
+      download(r.bytes, `hawpiw-cadangan-${stamp()}.zip`, 'application/zip');
+      return { files: r.files, dirs: r.dirs, bytes: r.bytes.length };
+    },
+  },
+  'backup.import': {
+    perm: 'backup',
+    run: async (k, p, [data, mode]) => {
+      if (!(data instanceof ArrayBuffer)) throw new Error('Data cadangan harus berupa ArrayBuffer');
+      const { restoreBackup } = await loadBackup();
+      return restoreBackup(k.fs, data, mode, VERSION);
+    },
+  },
 };
 
 // JSON aman untuk disisipkan di dalam <script>.
