@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<style>
+  body{display:flex;flex-direction:column}
+  ul{list-style:none;margin:0;padding:4px;overflow:auto;flex:1}
+  li{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:default}
+  li:hover{background:var(--panel)}
+  li .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  li button{padding:2px 8px;opacity:.75}
+  #msg{padding:4px 8px;min-height:1.6em}
+</style>
+</head>
+<body>
+  <div class="bar">
+    <button id="up" title="Naik satu folder">⬆</button>
+    <input id="path" class="grow" aria-label="Path">
+    <button id="newfile">+ File</button>
+    <button id="newdir">+ Folder</button>
+  </div>
+  <ul id="list"></ul>
+  <div id="msg" class="muted"></div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let cwd = hawpiw.args.path || '/home';
+  const joinPath = (dir, name) => (dir === '/' ? '' : dir) + '/' + name;
+  const say = (text, isErr) => { $('msg').textContent = text; $('msg').className = isErr ? 'err' : 'muted'; };
+
+  async function render() {
+    $('path').value = cwd;
+    hawpiw.win.setTitle('Berkas — ' + cwd);
+    let items;
+    try { items = await hawpiw.fs.list(cwd); } catch (e) { return say(e.message, true); }
+    const ul = $('list');
+    ul.replaceChildren();
+    for (const it of items) {
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = (it.type === 'dir' ? '📁 ' : '📄 ') + it.name;
+      const del = document.createElement('button');
+      del.textContent = 'Hapus';
+      del.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (!confirm('Hapus ' + it.name + '?')) return;
+        try { await hawpiw.fs.remove(joinPath(cwd, it.name)); render(); } catch (e) { say(e.message, true); }
+      };
+      li.append(name, del);
+      li.ondblclick = () => it.type === 'dir'
+        ? (cwd = joinPath(cwd, it.name), render())
+        : hawpiw.app.launch('notes', { path: joinPath(cwd, it.name) });
+      ul.append(li);
+    }
+    say(items.length ? items.length + ' item · klik dua kali untuk membuka' : 'Folder kosong');
+  }
+
+  $('up').onclick = () => { cwd = cwd.replace(/\/[^/]+$/, '') || '/'; render(); };
+  $('path').onchange = () => { cwd = $('path').value || '/'; render(); };
+  $('newfile').onclick = async () => {
+    const n = prompt('Nama file baru:', 'catatan.txt');
+    if (n) { try { await hawpiw.fs.write(joinPath(cwd, n), ''); render(); } catch (e) { say(e.message, true); } }
+  };
+  $('newdir').onclick = async () => {
+    const n = prompt('Nama folder baru:');
+    if (n) { try { await hawpiw.fs.mkdir(joinPath(cwd, n)); render(); } catch (e) { say(e.message, true); } }
+  };
+  render();
+</script>
+</body>
+</html>

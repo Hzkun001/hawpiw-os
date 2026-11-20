@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+<head>
+<style>
+  body{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:10px;overflow:auto}
+  #out{white-space:pre-wrap;word-break:break-word}
+  .row{display:flex;gap:6px}
+  #in{flex:1;background:none;border:0;padding:0;outline:none}
+  .p{color:var(--accent)}
+</style>
+</head>
+<body>
+  <div id="out"></div>
+  <div class="row"><span class="p" id="prompt"></span><input id="in" autocomplete="off" spellcheck="false" aria-label="Perintah" autofocus></div>
+<script>
+  const out = document.getElementById('out');
+  const input = document.getElementById('in');
+  let cwd = '/home';
+  const history = [];
+  let hi = 0;
+
+  const print = (text, cls) => {
+    const div = document.createElement('div');
+    if (cls) div.className = cls;
+    div.textContent = text;
+    out.append(div);
+    scrollTo(0, document.body.scrollHeight);
+  };
+  const resolve = (p) => {
+    if (!p) return cwd;
+    const parts = (p.startsWith('/') ? [] : cwd.split('/')).concat(p.split('/'));
+    const stack = [];
+    for (const s of parts) {
+      if (!s || s === '.') continue;
+      if (s === '..') stack.pop(); else stack.push(s);
+    }
+    return '/' + stack.join('/');
+  };
+  const setPrompt = () => { document.getElementById('prompt').textContent = cwd + ' $'; };
+
+  const commands = {
+    help: () => print('Perintah: ls [dir], cd <dir>, cat <file>, echo <teks> [> file], mkdir <dir>, rm <path>, open <app> [file], apps, info, clear'),
+    ls: async (a) => {
+      const items = await hawpiw.fs.list(resolve(a[0]));
+      print(items.map((i) => i.type === 'dir' ? i.name + '/' : i.name).join('  ') || '(kosong)');
+    },
+    cd: async (a) => { const p = resolve(a[0] || '/home'); await hawpiw.fs.list(p); cwd = p; setPrompt(); },
+    cat: async (a) => print(await hawpiw.fs.read(resolve(a[0]))),
+    echo: async (a) => {
+      const i = a.indexOf('>');
+      if (i === -1) return print(a.join(' '));
+      await hawpiw.fs.write(resolve(a[i + 1]), a.slice(0, i).join(' ') + '\n');
+    },
+    mkdir: async (a) => hawpiw.fs.mkdir(resolve(a[0])),
+    rm: async (a) => hawpiw.fs.remove(resolve(a[0])),
+    open: async (a) => hawpiw.app.launch(a[0], a[1] ? { path: resolve(a[1]) } : {}),
+    apps: async () => print((await hawpiw.app.list()).map((x) => `${x.id}\t${x.icon} ${x.name}`).join('\n')),
+    info: async () => print(JSON.stringify(await hawpiw.info(), null, 2)),
+    clear: () => out.replaceChildren(),
+  };
+
+  input.addEventListener('keydown', async (e) => {
+    if (e.key === 'ArrowUp' && hi > 0) { input.value = history[--hi]; e.preventDefault(); return; }
+    if (e.key === 'ArrowDown') { input.value = history[++hi] ?? ''; hi = Math.min(hi, history.length); return; }
+    if (e.key !== 'Enter') return;
+    const line = input.value.trim();
+    input.value = '';
+    print(cwd + ' $ ' + line, 'p');
+    if (!line) return;
+    history.push(line); hi = history.length;
+    const [cmd, ...args] = line.split(/\s+/);
+    const fn = Object.hasOwn(commands, cmd) ? commands[cmd] : null;
+    if (!fn) return print(`${cmd}: perintah tidak dikenal (ketik "help")`, 'err');
+    try { await fn(args); } catch (err) { print(err.message, 'err'); }
+  });
+  addEventListener('click', () => { if (!getSelection().toString()) input.focus(); });
+  setPrompt();
+  print('Hawpiw OS terminal — ketik "help"');
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+:root{
+  --bg:#0f1218;--bg2:#1a2030;--panel:#171b23ee;--line:#2a303c;--text:#e6e9ef;--muted:#8a93a6;--accent:#f5b83d;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){
+  :root{--bg:#e9edf3;--bg2:#d5dce8;--panel:#ffffffee;--line:#d0d6e0;--text:#161a22;--muted:#5d6678;--accent:#c98a00;color-scheme:light}
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{
+  background:radial-gradient(1200px 700px at 80% -10%,var(--bg2),var(--bg));
+  color:var(--text);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#desktop{position:fixed;inset:0 0 48px 0;padding:16px}
+.icons{display:grid;grid-auto-flow:column;grid-template-rows:repeat(auto-fill,96px);grid-auto-columns:88px;gap:8px;height:100%}
+.icon{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:none;border:1px solid transparent;border-radius:10px;cursor:pointer}
+.icon:hover{background:#ffffff14;border-color:#ffffff22}
+.icon .glyph{font-size:34px;line-height:1}
+.icon .label{font-size:12px;text-shadow:0 1px 2px #0008}
+
+#taskbar{
+  position:fixed;left:0;right:0;bottom:0;height:48px;z-index:2147483000;
+  display:flex;align-items:center;gap:8px;padding:0 10px max(0px,env(safe-area-inset-bottom));
+  background:var(--panel);border-top:1px solid var(--line);backdrop-filter:blur(12px);
+}
+.brand{font-weight:600;padding-right:6px}
+.tasks{display:flex;gap:6px;flex:1;min-width:0;overflow-x:auto}
+.task{white-space:nowrap;background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.task.active{border-color:var(--accent);background:#f5b83d1f}
+.clock{font-variant-numeric:tabular-nums;color:var(--muted)}
+
+/* Jendela (WinBox) */
+.winbox.hawpiw-win{background:#262c38;border-radius:10px;overflow:hidden;box-shadow:0 12px 40px #0007}
+.winbox.hawpiw-win.focus{background:#343c4c}
+.winbox.hawpiw-win .wb-title{font-size:13px}
+.winbox.hawpiw-win .wb-body{background:var(--bg)}
+.app-frame{display:block;width:100%;height:100%;border:0}
+
+@media (max-width:640px){
+  .icons{grid-auto-flow:row;grid-template-rows:none;grid-template-columns:repeat(4,1fr);height:auto}
+  .brand{display:none}
+}
