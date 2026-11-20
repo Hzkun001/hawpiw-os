@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:e2e": "node tests/e2e.mjs",
-    "deploy": "npm run build && wrangler pages deploy dist --project-name hawpiw-os --branch main"
+    "deploy": "npm run build && wrangler pages deploy dist --project-name hawpiw-os --branch main --force"
   },
   "license": "GPL-3.0-or-later",
   "type": "module",
@@ -26,5 +26,5 @@
     "type": "git",
     "url": "git+https://github.com/Hzkun001/hawpiw-os.git"
   },
-  "homepage": "https://github.com/Hzkun001/hawpiw-os"
+  "homepage": "https://hawpiw-os.pages.dev"
 }

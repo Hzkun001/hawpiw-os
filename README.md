@@ -1,5 +1,7 @@
 # Hawpiw OS ⚡
 
+**Coba langsung: https://hawpiw-os.pages.dev**
+
 Sistem operasi web **satu file HTML**: ringan, jalan offline, tanpa server. Seluruh OS
 (shell, kernel, filesystem, 3 aplikasi) saat ini berukuran **±38 KB (14 KB gzip)**.
 
@@ -10,6 +12,17 @@ npm run build        # hasil: dist/index.html (satu file, bisa dibuka langsung d
 npm run preview      # sajikan dist/ di http://localhost:4173
 node tests/e2e.mjs http://localhost:4173/ chromium   # atau firefox / webkit
 ```
+
+## Deploy (Cloudflare Pages)
+
+```bash
+npx wrangler login     # sekali saja
+npm run deploy         # build + upload ke https://hawpiw-os.pages.dev
+```
+
+Catatan: wrangler 4.165 mengalihkan perintah `pages` ke sistem baru yang gagal untuk
+project statis ini; flag `--force` memakai jalur Pages langsung. Upload kadang gagal
+dengan `ECONNRESET` di jaringan yang tidak stabil. Aman diulang (upload berbasis hash).
 
 ## Arsitektur
 
