@@ -17,6 +17,9 @@ node tests/e2e.mjs http://localhost:4173/ chromium   # atau firefox / webkit
 
 ## Deploy (Cloudflare Pages)
 
+Otomatis: setiap push ke `main` yang lulus e2e di ketiga browser di-deploy oleh CI
+(secret `CLOUDFLARE_API_TOKEN` berizin Pages saja + `CLOUDFLARE_ACCOUNT_ID`). Manual:
+
 ```bash
 npx wrangler login     # sekali saja
 npm run deploy         # build + upload ke https://hawpiw-os.pages.dev
