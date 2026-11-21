@@ -80,7 +80,6 @@ const deniedBackup = await notesFrame.evaluate(() => hawpiw.backup.export().then
 check('izin backup ditolak untuk Catatan', deniedBackup.includes('Izin'), deniedBackup);
 
 check('taskbar menampilkan 3 jendela', (await page.locator('.task').count()) === 3);
-if (shotDir) await page.screenshot({ path: `${shotDir}/desktop-${which}.png` });
 
 // Persistensi setelah reload
 await page.reload();
@@ -223,6 +222,11 @@ check('halaman asing di frame app tidak mendapat data', !foreignTitle.includes('
 check('app tidak bisa berpindah halaman (diblokir atau ditutup)', stillOriginalApp || procsAfter === procsBefore - 1,
   stillOriginalApp ? 'navigasi diblokir CSP, app utuh' : `proses ${procsBefore} → ${procsAfter}`);
 srv.close();
+
+// Screenshot diambil SETELAH pemeriksaan CSP: di WebKit, page.screenshot()
+// Playwright menyisipkan <style>body {}</style> ke semua frame untuk
+// menyinkronkan animasi, dan CSP Hawpiw (benar) menolaknya.
+if (shotDir) await page.screenshot({ path: `${shotDir}/desktop-${which}.png` });
 
 // Tampilan HP: jendela otomatis maksimal
 const m = await browser.newContext({ viewport: { width: 390, height: 780 }, hasTouch: true });
