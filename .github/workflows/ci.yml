@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: e2e (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Pasang ${{ matrix.browser }} beserta dependensi sistem
+        run: npx playwright-core install --with-deps ${{ matrix.browser }}
+      - run: npm run build
+      - name: Sajikan dist/
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          for _ in $(seq 30); do curl -sf http://localhost:4173/ > /dev/null && exit 0; sleep 1; done
+          cat preview.log; echo "server tidak siap"; exit 1
+      - name: e2e lewat HTTP
+        run: node tests/e2e.mjs http://localhost:4173/ ${{ matrix.browser }} shots
+      - name: e2e dari file lokal (file://)
+        run: node tests/e2e.mjs "file://$PWD/dist/index.html" ${{ matrix.browser }}
+      - name: Simpan screenshot
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots-${{ matrix.browser }}
+          path: shots/
+          if-no-files-found: ignore
+
+  perf:
+    # Informasi, bukan gerbang: runner CI berbagi CPU dengan job lain sehingga
+    # angkanya lebih bising. Gerbang anggaran utama tetap `npm run perf` lokal.
+    name: perf (chromium)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run build
+      - name: Sajikan dist/
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          for _ in $(seq 30); do curl -sf http://localhost:4173/ > /dev/null && exit 0; sleep 1; done
+          cat preview.log; echo "server tidak siap"; exit 1
+      - name: Ukur performa
+        run: |
+          set -o pipefail
+          node tests/perf.mjs http://localhost:4173/ --json perf.json | tee perf.txt \
+            || echo "::warning title=Anggaran performa::Ada metrik yang melewati perf-budget.json (lihat ringkasan job)"
+          { echo '### Performa (Chromium, CPU diperlambat 4x)'; echo '```'; sed -n '4,40p' perf.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: perf
+          path: perf.json

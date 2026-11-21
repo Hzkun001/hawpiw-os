@@ -1,5 +1,7 @@
 # Hawpiw OS ⚡
 
+[![CI](https://github.com/Hzkun001/hawpiw-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Hzkun001/hawpiw-os/actions/workflows/ci.yml)
+
 **Coba langsung: https://hawpiw-os.pages.dev**
 
 Sistem operasi web **satu file HTML**: ringan, jalan offline, tanpa server. Seluruh OS
